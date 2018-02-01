@@ -78,6 +78,30 @@ defmodule Eager do
         end
     end
     def eval_match(_, _, _), do: :fail
+
+    def eval_seq(env, [{:match, left, right} | rest]) do
+        case eval_expr(env, right) do
+            :error ->
+                :error
+            {:ok, struct} ->
+                vars = extract_variables(left)
+                env = Env.remove(env, vars)
+                
+                case eval_match(env, left, struct) do
+                    :fail ->
+                        :error
+                    {:ok, env} ->
+                        eval_seq(env, rest)
+                end
+        end
+    end
+    def eval_seq(env, [exp]), do: eval_expr(env, exp)
+    def eval_seq(seq), do: eval_seq([], seq)
+
+    def extract_variables({:atm, _}), do: []
+    def extract_variables({:var, id}), do: [id]
+    def extract_variables({:cons, head, tail}), do: extract_variables(head) ++ extract_variables(tail)
+    def extract_variables(_), do: []
 end
 
 defmodule Env do
@@ -107,12 +131,12 @@ defmodule Env do
         [{id, struct}]
     end
     def add([{envId, envStruct} | rest], id, struct) do
-        case strcmp(envId, id) do
-            0 ->
+        cond do
+            envId == id ->
                 :error
-            x when x > 0 ->
+            envId > id ->
                 [{id, struct}, {envId, envStruct} | rest]
-            x when x < 0 ->
+            envId < id ->
                 [{envId, envStruct} | add(rest, id, struct)]
         end
     end
@@ -124,12 +148,12 @@ defmodule Env do
         :not_found
     end
     def lookup([{envId, envStruct} | rest], id) do
-        case strcmp(envId, id) do
-            0 ->
+        cond do
+            envId == id ->
                 {:ok, envStruct}
-            x when x > 0 ->
+            envId > id ->
                 :not_found
-            x when x < 0 ->
+            envId < id ->
                 lookup(rest, id)
         end
     end
@@ -141,11 +165,10 @@ defmodule Env do
         []
     end
     def remove([{envId, envStruct} | rest], id) do
-        case strcmp(envId, id) do
-            x when x >= 0 ->
-                rest
-            x when x < 0 ->
-                [{envId, envStruct} | remove(rest, id)]
+        if envId >= id do
+            rest
+        else
+            [{envId, envStruct} | remove(rest, id)]
         end
     end
     def remove(env, [id | rest]) do
@@ -154,19 +177,4 @@ defmodule Env do
     def remove(env, []) do
         env
     end
-
-    @doc """
-    Help function that compares 2 strings.
-    """
-    def strcmp([ah | at], [bh | bt]) do
-        dif = ah - bh
-        if dif == 0 do
-            strcmp(at, bt)
-        else
-            dif
-        end
-    end
-    def strcmp([], [bh | bt]), do: -bh
-    def strcmp([ah | at], []), do: ah
-    def strcmp([], []), do: 0
 end
