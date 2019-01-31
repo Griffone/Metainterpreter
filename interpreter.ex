@@ -17,30 +17,20 @@ defmodule Eager do
     Evaluate an expression in the provided environment.
     May result in an error if an expression is not evaluatable in given environment.
     """
-    def eval_expr(_, {:atm, id}) do
-        {:ok, id}
-    end
-    def eval_expr([], {:var, id}) do
-        :error
-    end
+    def eval_expr(_, {:atm, id}), do: id
     def eval_expr(env, {:var, id}) do
         case Env.lookup(env, id) do
-            :not_found ->
-                :error
-            {:ok, struct} ->
-                {:ok, struct}
+            nil -> :error
+            {id, struct} -> {:ok, struct}
         end
     end
     def eval_expr(env, {:cons, a, b}) do
         case eval_expr(env, a) do
-            :error ->
-                :error
+            :error -> :error
             {:ok, structA} ->
                 case eval_expr(env, b) do
-                    :error ->
-                        :error
-                    {:ok, structB} ->
-                        {:ok, {structA, structB}}
+                    :error -> :error
+                    {:ok, structB} -> {:ok, {structA, structB}}
                 end
         end
     end
@@ -120,61 +110,25 @@ defmodule Env do
     @doc """
     Return a new Elixir environment.
     """
-    def new() do
-        []
-    end
+    def new(), do: %{}
 
     @doc """
     Insert an id-struct pair into the environment.
     """
-    def add([], id, struct) do
-        [{id, struct}]
-    end
-    def add([{envId, envStruct} | rest], id, struct) do
-        cond do
-            envId == id ->
-                :error
-            envId > id ->
-                [{id, struct}, {envId, envStruct} | rest]
-            envId < id ->
-                [{envId, envStruct} | add(rest, id, struct)]
-        end
-    end
+    def add(environment, id, structure), do: Map.put(environment, id, structure)
 
     @doc """
     Lookup an item in the environment.
     """
-    def lookup([], id) do
-        :not_found
-    end
-    def lookup([{envId, envStruct} | rest], id) do
-        cond do
-            envId == id ->
-                {:ok, envStruct}
-            envId > id ->
-                :not_found
-            envId < id ->
-                lookup(rest, id)
+    def lookup(environment, id) do
+        case Map.get(environment, id) do
+            nil -> nil
+            structure -> {id, structure}
         end
     end
 
     @doc """
-    Remove an element from an environment.
+    Remove every id in ids from environment
     """
-    def remove([], id) do
-        []
-    end
-    def remove([{envId, envStruct} | rest], id) do
-        if envId >= id do
-            rest
-        else
-            [{envId, envStruct} | remove(rest, id)]
-        end
-    end
-    def remove(env, [id | rest]) do
-        remove(remove(env, id), rest)
-    end
-    def remove(env, []) do
-        env
-    end
+    def remove(environment, ids), do: Map.drop(environment, ids)
 end
