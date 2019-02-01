@@ -17,7 +17,7 @@ defmodule Eager do
     Evaluate an expression in the provided environment.
     May result in an error if an expression is not evaluatable in given environment.
     """
-    def eval_expr(_, {:atm, id}), do: id
+    def eval_expr(_, {:atm, id}), do: {:ok, id}
     def eval_expr(env, {:var, id}) do
         case Env.lookup(env, id) do
             nil -> :error
@@ -27,10 +27,10 @@ defmodule Eager do
     def eval_expr(env, {:cons, a, b}) do
         case eval_expr(env, a) do
             :error -> :error
-            {:ok, structA} ->
+            {:ok, struct_a} ->
                 case eval_expr(env, b) do
                     :error -> :error
-                    {:ok, structB} -> {:ok, {structA, structB}}
+                    {:ok, struct_b} -> {:ok, {struct_a, struct_b}}
                 end
         end
     end
@@ -46,25 +46,18 @@ defmodule Eager do
             :fail
         end
     end
-    def eval_match(env, :ignore, _) do
-        {:ok, env}
-    end
+    def eval_match(env, :ignore, _), do: {:ok, env}
     def eval_match(env, {:var, id}, struct) do
         case Env.lookup(env, id) do
-            :not_found ->
-                {:ok, Env.add(env, id, struct)}
-            {:ok, ^struct} ->
-                {:ok, env}
-            {:ok, _} ->
-                :fail
+            nil -> {:ok, Env.add(env, id, struct)}
+            {id, ^struct} -> {:ok, env}
+            _ -> :fail
         end
     end
-    def eval_match(env, {:cons, head, tail}, {structHead, structTail}) do
-        case eval_match(env, head, structHead) do
-            :fail ->
-                :fail
-            {:ok, env} ->
-                eval_match(env, tail, structTail)
+    def eval_match(env, {:cons, head, tail}, {head_struct, tail_struct}) do
+        case eval_match(env, head, head_struct) do
+            :fail -> :fail
+            {:ok, env} -> eval_match(env, tail, tail_struct)
         end
     end
     def eval_match(_, _, _), do: :fail
